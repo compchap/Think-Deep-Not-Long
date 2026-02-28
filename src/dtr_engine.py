@@ -30,7 +30,10 @@ class DTREngine:
         )
         self.model = AutoModelForCausalLM.from_pretrained(
             model_id, 
-            dtype=torch.float16, # Use float16 for Mac M1 memory efficiency. Keep the model in float16 for memory efficiency, but upcast later during generation to float32 for the numerically sensitive JSD math
+            # Use float16 for Mac M1 memory efficiency. 
+            # Keep the model in float16 for memory efficiency, but upcast later 
+            # during generation to float32 for the numerically sensitive JSD math
+            dtype=torch.float16, 
             cache_dir=self.cache_dir,
             local_files_only=True,   # Only use local files, no network calls
             low_cpu_mem_usage=True
@@ -40,11 +43,37 @@ class DTREngine:
         # some models may have dropout or other layers that behave differently. 
         # Best practice is to call .eval() for inference.
         self.model.eval()
+        
+        # Print model and tokenizer configs
         print(f"Model config: {self.model.model}")
+        self.print_tokenizer_info()
+        
         self.g = g
         self.rho = rho
         self.L = self.model.config.num_hidden_layers # Total layers (L) [cite: 103]
 
+    def print_tokenizer_info(self):
+        """Print key tokenizer configs."""
+        info = {
+            "name_or_path": self.tokenizer.name_or_path,
+            "class": type(self.tokenizer).__name__,
+            "vocab_size": self.tokenizer.vocab_size,
+            "model_max_length": self.tokenizer.model_max_length,
+            "is_fast": self.tokenizer.is_fast,
+            "pad_token": self.tokenizer.pad_token,
+            "pad_token_id": self.tokenizer.pad_token_id,
+            "eos_token": self.tokenizer.eos_token,
+            "eos_token_id": self.tokenizer.eos_token_id,
+            "bos_token": self.tokenizer.bos_token,
+            "bos_token_id": getattr(self.tokenizer, "bos_token_id", None),
+            "unk_token": self.tokenizer.unk_token,
+            "unk_token_id": getattr(self.tokenizer, "unk_token_id", None),
+        }
+        print("\nTokenizer Info:")
+        for k, v in info.items():
+            print(f"  {k}: {v}")
+        
+        
 
     def calculate_jsd(self, p, q):
         """Eq 2: Jensen-Shannon Divergence [cite: 145]"""
@@ -66,11 +95,13 @@ class DTREngine:
         hidden_states = outputs.hidden_states  # Tuple of (embedding, layer1, ..., layerL)
         # Use hidden_states[-1] with same norm+lm_head pipeline as intermediate layers (Logit Lens consistency)
         h_final = self.model.model.norm(hidden_states[-1][:, -1, :])
+        # Upcast to float32 for the numerically sensitive JSD math
         p_L = F.softmax(self.model.lm_head(h_final).to(torch.float32), dim=-1)  # Final layer distribution [cite: 108]
         
         # Algorithm 1: Find settling depth c_t [cite: 113, 155]
         # hidden_states[0] = embedding, hidden_states[1..L] = after each transformer layer
         c_t = self.L
+        # Iterating through the layers to find the settling depth
         for l in range(1, self.L + 1):
             # Project intermediate hidden state to vocabulary space (Logit Lens) [cite: 105, 106]
             h_l = self.model.model.norm(hidden_states[l][:, -1, :])

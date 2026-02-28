@@ -9,8 +9,8 @@ class DTREngine:
         self,
         model_id: str = "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
         cache_dir: str | None = None,
-        g: float = 0.5,
-        rho: float = 0.85,
+        g: float = 0.5, # Settling threshold (used in Jensen-Shannon Divergence)
+        rho: float = 0.85, # Depth fraction (used in late regime start calculation)
     ):
         self.device = get_device()
         print(f"Device: {self.device}")
@@ -54,25 +54,30 @@ class DTREngine:
 
     def print_tokenizer_info(self):
         """Print key tokenizer configs."""
-        info = {
-            "name_or_path": self.tokenizer.name_or_path,
-            "class": type(self.tokenizer).__name__,
-            "vocab_size": self.tokenizer.vocab_size,
-            "model_max_length": self.tokenizer.model_max_length,
-            "is_fast": self.tokenizer.is_fast,
-            "pad_token": self.tokenizer.pad_token,
-            "pad_token_id": self.tokenizer.pad_token_id,
-            "eos_token": self.tokenizer.eos_token,
-            "eos_token_id": self.tokenizer.eos_token_id,
-            "bos_token": self.tokenizer.bos_token,
-            "bos_token_id": getattr(self.tokenizer, "bos_token_id", None),
-            "unk_token": self.tokenizer.unk_token,
-            "unk_token_id": getattr(self.tokenizer, "unk_token_id", None),
-        }
-        print("\nTokenizer Info:")
-        for k, v in info.items():
-            print(f"  {k}: {v}")
+        # info = {
+        #     "name_or_path": self.tokenizer.name_or_path,
+        #     "class": type(self.tokenizer).__name__,
+        #     "vocab_size": self.tokenizer.vocab_size,
+        #     "model_max_length": self.tokenizer.model_max_length,
+        #     "is_fast": self.tokenizer.is_fast,
+        #     "pad_token": self.tokenizer.pad_token,
+        #     "pad_token_id": self.tokenizer.pad_token_id,
+        #     "eos_token": self.tokenizer.eos_token,
+        #     "eos_token_id": self.tokenizer.eos_token_id,
+        #     "bos_token": self.tokenizer.bos_token,
+        #     "bos_token_id": getattr(self.tokenizer, "bos_token_id", None),
+        #     "unk_token": self.tokenizer.unk_token,
+        #     "unk_token_id": getattr(self.tokenizer, "unk_token_id", None),
+        # }
+        # print("\nTokenizer Info:")
+        # for k, v in info.items():
+        #     print(f"  {k}: {v}")
         
+        # For a config-like dump (attributes that are typically JSON-serializable)
+        attrs = ["vocab_size", "model_max_length", "name_or_path", "pad_token", "eos_token", "bos_token", "unk_token"]
+        for attr in attrs:
+            if hasattr(self.tokenizer, attr):
+                print(f"  {attr}: {getattr(self.tokenizer, attr)}")
         
 
     def calculate_jsd(self, p, q):
@@ -87,6 +92,16 @@ class DTREngine:
         return 0.5 * (F.kl_div(m_log, p, reduction='batchmean', log_target=False) + 
                       F.kl_div(m_log, q, reduction='batchmean', log_target=False))
 
+    """
+        h_final: normalized final hidden state.
+        h_l: normalized intermediate hidden state.
+        p_L, p_l: vocabulary distributions (Logit Lens).
+            p_L is the final layer distribution, p_l is the intermediate layer distribution.
+        c_t: settling depth (first layer matching p_L).
+        late_regime_start: start of late regime.
+        is_deep: whether the token is a deep-thinking token.
+        next_token: the next token to generate.
+    """
     def generate_step(self, token_ids):
         with torch.no_grad():
             # Fixed: Pass output_hidden_states=True in forward call, not in from_pretrained

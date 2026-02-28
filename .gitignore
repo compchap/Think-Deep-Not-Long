@@ -28,3 +28,4 @@ models/
 # Internal
 tasks/
 temp_commands.sh
+synthesis/

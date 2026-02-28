@@ -6,7 +6,14 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "dotenv>=0.9.9",
+    "pytest>=9.0.2",
     "scipy>=1.17.1",
     "torch>=2.10.0",
     "transformers>=5.2.0",
+]
+
+[tool.pytest.ini_options]
+# Suppress SWIG deprecation warnings from PyTorch / C extensions (harmless)
+filterwarnings = [
+    "ignore:builtin type.*has no __module__:DeprecationWarning",
 ]

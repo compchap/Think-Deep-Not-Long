@@ -1,0 +1,12 @@
+[project]
+name = "think-deep-not-long"
+version = "0.1.0"
+description = "Implementing White Paper - https://arxiv.org/pdf/2602.13517"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "dotenv>=0.9.9",
+    "scipy>=1.17.1",
+    "torch>=2.10.0",
+    "transformers>=5.2.0",
+]

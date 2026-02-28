@@ -1,0 +1,30 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+.python-version
+
+# Virtual environments
+.venv
+.env
+.env.local
+
+# Models
+models/
+*.safetensors
+*.bin
+*.pt
+*.pth
+
+# Cursor files
+.cursorignore
+.cursorindexingignore
+.cursor/
+
+# OS
+.DS_Store
+
+# Internal
+tasks/
+temp_commands.sh

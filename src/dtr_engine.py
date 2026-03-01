@@ -82,7 +82,11 @@ class DTREngine:
 
     def calculate_jsd(self, p, q):
         """Eq 2: Jensen-Shannon Divergence [cite: 145]"""
-        m = 0.5 * (p + q)
+        g = 0.5 # Default settling threshold - counts tokens that truly required sustained internal revision
+        # if you set g too low (e.g., 0.25), the metric becomes "overly permissive". 
+        # It starts counting simple, low-effort tokens as "thinking," 
+        # which causes the correlation with accuracy to flatten out or disappear
+        m = g * (p + q)
 
         # p_log = p.clamp(min=1e-10).log()
         # q_log = q.clamp(min=1e-10).log()

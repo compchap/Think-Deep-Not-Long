@@ -100,7 +100,8 @@ class DTREngine:
         h_final: normalized final hidden state.
         h_l: normalized intermediate hidden state.
         p_L, p_l: vocabulary distributions (Logit Lens).
-            p_L is the final layer distribution, p_l is the intermediate layer distribution.
+            p_L is the final layer distribution, 
+            p_l is the intermediate layer distribution.
         c_t: settling depth (first layer matching p_L).
         late_regime_start: start of late regime.
         is_deep: whether the token is a deep-thinking token.
@@ -139,6 +140,16 @@ class DTREngine:
         return next_token, is_deep
 
     def generate_with_dtr(self, prompt, max_tokens=50):
+        """
+        Generate tokens with DTR calculation (Algorithm 1).
+        
+        Args:
+            prompt: Input text prompt
+            max_tokens: Maximum tokens to generate
+            
+        Yields:
+            Tuple of (token_str, is_deep, dtr) for each generated token
+        """
         token_ids = self.tokenizer.encode(prompt, return_tensors="pt").to(self.device)
         deep_tokens = 0
         
@@ -151,6 +162,156 @@ class DTREngine:
             
             yield self.tokenizer.decode(next_token[0]), is_deep, dtr
             if next_token.item() == self.tokenizer.eos_token_id: break
+    
+    def estimate_dtr_from_prefix(self, prompt: str, prefix_length: int = 50) -> tuple[str, float, int]:
+        """
+        Generate a prefix and estimate DTR from it (for Think@n early stopping).
+        
+        Args:
+            prompt: Input text prompt
+            prefix_length: Number of tokens to generate for DTR estimation
+            
+        Returns:
+            Tuple of (generated_text, prefix_dtr, tokens_generated)
+        """
+        token_ids = self.tokenizer.encode(prompt, return_tensors="pt").to(self.device)
+        deep_tokens = 0
+        generated_tokens = []
+        
+        for t in range(1, prefix_length + 1):
+            next_token, is_deep = self.generate_step(token_ids)
+            if is_deep:
+                deep_tokens += 1
+            
+            generated_tokens.append(next_token.item())
+            token_ids = torch.cat([token_ids, next_token], dim=1)
+            
+            # Stop at EOS
+            if next_token.item() == self.tokenizer.eos_token_id:
+                break
+        
+        tokens_generated = len(generated_tokens)
+        prefix_dtr = deep_tokens / tokens_generated if tokens_generated > 0 else 0.0
+        generated_text = self.tokenizer.decode(generated_tokens)
+        
+        return generated_text, prefix_dtr, tokens_generated
+    
+    def generate_n_samples(
+        self, 
+        prompt: str, 
+        n: int = 48, 
+        prefix_length: int = 50, 
+        max_tokens: int = 500,
+        early_stop: bool = True,
+        eta: float = 0.5
+    ) -> list[dict]:
+        """
+        Generate n samples with early stopping based on prefix DTR (for Think@n).
+        
+        Args:
+            prompt: Input text prompt
+            n: Number of samples to generate
+            prefix_length: Number of tokens for DTR estimation
+            max_tokens: Maximum tokens per sample (full generation)
+            early_stop: Whether to stop low-DTR samples early
+            eta: Fraction of top samples to continue (e.g., 0.5 = top 50%)
+            
+        Returns:
+            List of sample dicts with keys: 'text', 'dtr', 'tokens', 'full_generation'
+        """
+        samples = []
+        
+        # Phase 1: Generate prefixes for all n samples
+        print(f"Generating {n} prefixes ({prefix_length} tokens each)...")
+        for i in range(n):
+            prefix_text, prefix_dtr, tokens_gen = self.estimate_dtr_from_prefix(prompt, prefix_length)
+            samples.append({
+                'text': prefix_text,
+                'dtr': prefix_dtr,
+                'tokens': tokens_gen,
+                'full_generation': False,
+                'sample_id': i
+            })
+        
+        if not early_stop:
+            # Continue all samples to completion
+            print(f"Continuing all {n} samples to completion...")
+            for sample in samples:
+                full_text, final_dtr, total_tokens = self._continue_generation(
+                    prompt, sample['text'], max_tokens
+                )
+                sample['text'] = full_text
+                sample['dtr'] = final_dtr
+                sample['tokens'] = total_tokens
+                sample['full_generation'] = True
+        else:
+            # Phase 2: Rank by prefix DTR and continue only top eta%
+            samples_sorted = sorted(samples, key=lambda x: x['dtr'], reverse=True)
+            top_k = max(1, int(eta * n))
+            
+            print(f"Early stopping: continuing top {top_k}/{n} samples (η={eta})...")
+            for i, sample in enumerate(samples_sorted):
+                if i < top_k:
+                    # Continue top samples
+                    full_text, final_dtr, total_tokens = self._continue_generation(
+                        prompt, sample['text'], max_tokens
+                    )
+                    sample['text'] = full_text
+                    sample['dtr'] = final_dtr
+                    sample['tokens'] = total_tokens
+                    sample['full_generation'] = True
+                else:
+                    # Bottom samples stopped at prefix
+                    sample['full_generation'] = False
+        
+        return samples
+    
+    def _continue_generation(self, prompt: str, prefix_text: str, max_tokens: int) -> tuple[str, float, int]:
+        """
+        Continue generation from a prefix to completion.
+        
+        Args:
+            prompt: Original input prompt
+            prefix_text: Already generated prefix text
+            max_tokens: Maximum total tokens
+            
+        Returns:
+            Tuple of (full_text, final_dtr, total_tokens)
+        """
+        # Re-encode prompt + prefix
+        full_prompt = prompt + prefix_text
+        token_ids = self.tokenizer.encode(full_prompt, return_tensors="pt").to(self.device)
+        
+        # Count deep tokens in what we generate from here
+        deep_tokens = 0
+        tokens_generated = 0
+        generated_tokens = []
+        
+        # Continue generation
+        for t in range(max_tokens):
+            next_token, is_deep = self.generate_step(token_ids)
+            if is_deep:
+                deep_tokens += 1
+            
+            generated_tokens.append(next_token.item())
+            tokens_generated += 1
+            token_ids = torch.cat([token_ids, next_token], dim=1)
+            
+            # Stop at EOS
+            if next_token.item() == self.tokenizer.eos_token_id:
+                break
+        
+        # Calculate final DTR over the continued portion
+        continuation_dtr = deep_tokens / tokens_generated if tokens_generated > 0 else 0.0
+        
+        # Decode only the new tokens
+        continuation_text = self.tokenizer.decode(generated_tokens)
+        full_text = prefix_text + continuation_text
+        
+        # Total tokens = prefix + continuation
+        total_tokens = len(self.tokenizer.encode(full_prompt + continuation_text)) - len(self.tokenizer.encode(prompt))
+        
+        return full_text, continuation_dtr, total_tokens
 
     def main():
         """Entry point for running DTREngine from CLI or as a module."""

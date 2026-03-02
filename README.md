@@ -41,7 +41,7 @@ Install [uv](https://github.com/astral-sh/uv).
 
 ## Running
 
-- **Algorithm 1 (DTR):** `uv run main.py --max-tokens 50 --model qwen.6b`
+- **Algorithm 1 (DTR):** `uv run examples/demo_dtr.py --max-tokens 50 --model qwen.6b`
 - **Algorithm 2 (Think@n):** `uv run examples/demo_think_at_n.py --model qwen.6b --n 12`
 - **Benchmark:** `uv run benchmark.py`
 

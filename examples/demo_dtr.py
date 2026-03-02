@@ -1,5 +1,11 @@
-from src.dtr_engine import DTREngine
+import sys
+import os
+import argparse
 
+# Add project root to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from src.dtr_engine import DTREngine
 from src.config.models import MODELS
 
 def main(model_name: str = "qwen", prompt: str = "Calculate 12 * 12: ", max_tokens: int = 25):

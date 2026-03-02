@@ -2,7 +2,7 @@
 
 > An implementation of the "Think Deep, Not Just Long" (Google 2026) research paper.
 
-This repository provides a framework for measuring the **Deep-Thinking Ratio (DTR)** in reasoning models (like DeepSeek-R1 and Qwen-Math) by analyzing internal layer convergence.
+This repository provides a framework for measuring the **Deep-Thinking Ratio (DTR)** in reasoning models (like DeepSeek-R1 and Qwen-Math) by analyzing internal layer convergence. I have also implemented the **Think@n**, a test-time scaling strategy that uses DTR to select high-quality samples while reducing inference costs by ~50%
 
 ---
 

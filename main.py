@@ -1,30 +1,15 @@
 from src.dtr_engine import DTREngine
 
-# Model registry: short name -> {model_id, cache_dir}
-MODELS = {
-    "qwen4b": {
-        "model_id": "Qwen/Qwen3-4B-Thinking-2507",
-        "cache_dir": "models/qwen-4b",
-    },
-    "deepseek": {
-        "model_id": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
-        "cache_dir": "models/deepseek-8b",
-    },
-    "qwen.6b": {
-        "model_id": "Qwen/Qwen3-0.6B",
-        "cache_dir": "models/qwen",
-    },
-    # Add more models here
-}
+from src.config.models import MODELS
 
 def main(model_name: str = "qwen", prompt: str = "Calculate 12 * 12: ", max_tokens: int = 25):
     if model_name not in MODELS:
         raise ValueError(f"Unknown model '{model_name}'. Available: {list(MODELS.keys())}")
     
-    config = MODELS[model_name]
+    config = MODELS[args.model]
     engine = DTREngine(**config)
     
-    print(f"Using model: {config['model_id']}")
+    print(f"Using model: {args.model}")
     print(f"Generating for: {prompt}")
     for word, is_deep, dtr in engine.generate_with_dtr(prompt, max_tokens=max_tokens):
         marker = "🧠" if is_deep else "  "

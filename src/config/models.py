@@ -1,4 +1,4 @@
-# Model registry
+# Model registry: short name -> {model_id, cache_dir}
 MODELS = {
     "qwen.6b": {
         "model_id": "Qwen/Qwen3-0.6B",

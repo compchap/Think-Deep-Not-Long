@@ -50,7 +50,7 @@ def main():
     parser.add_argument(
         "--model",
         default="qwen.6b",
-        choices=["qwen.6b", "deepseek", "qwen4b"],
+        choices=list(MODELS.keys()),
         help="Model to use (must be downloaded first)"
     )
     parser.add_argument(

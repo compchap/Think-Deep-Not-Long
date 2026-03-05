@@ -8,10 +8,10 @@ MODELS = {
         "model_id": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
         "cache_dir": "models/deepseek-8b",
     },
-    "qwen4b": {
-        "model_id": "Qwen/Qwen3-4B-Thinking-2507",
-        "cache_dir": "models/qwen-4b",
-    },
+    # "qwen4b": {
+    #     "model_id": "Qwen/Qwen3-4B-Thinking-2507",
+    #     "cache_dir": "models/qwen-4b",
+    # },
     "nanbeige": {
         "model_id": "Nanbeige/Nanbeige4-3B-Thinking-2511",
         "cache_dir": "models/nanbeige",
@@ -23,5 +23,9 @@ MODELS = {
     "olmo3_7B": {
         "model_id": "allenai/Olmo-3-7B-Think",
         "cache_dir": "models/allenai",
-    },
+    }, 
+    # "gemma3_4b": {
+    #     "model_id": "google/gemma-3-4b-it",
+    #     "cache_dir": "models/google/gemma3",
+    # }
 }
